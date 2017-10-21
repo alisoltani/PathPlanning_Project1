@@ -8,6 +8,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
 
 using namespace std;
 
@@ -233,10 +234,123 @@ int main() {
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	json msgJson;
+          	// save some previous and reference values
+            // Start in lane 1;
+            int lane = 1;
+            // Reference velocity
+            double ref_vel = 49.5; // mph
+
+          	int prev_path_size = previous_path_x.size();
+          	double ref_x = car_x;
+          	double ref_y = car_y;
+          	double ref_yaw = deg2rad(car_yaw);
+          	double prev_car_x = 0;
+          	double prev_car_y = 0;
+
+          	// Creates a list of evenly spaced (x,y) waypoints to be later filled in with the spline
+          	vector<double> x_points;
+          	vector<double> y_points;
+
+          	if (prev_path_size < 2) // we dont have points from the previous path waypoints
+          	{
+          	  prev_car_x = car_x - cos(car_yaw);
+          	  prev_car_y = car_y - sin(car_yaw);
+          	}
+          	else // we can use previous points to update our reference points
+          	{
+          	  ref_x = previous_path_x[prev_path_size-1];
+          	  ref_y = previous_path_y[prev_path_size-1];
+          	  prev_car_x = previous_path_x[prev_path_size-2];
+          	  prev_car_y = previous_path_y[prev_path_size-2];
+          	  ref_yaw = atan2(ref_y-prev_car_y,ref_x-prev_car_x);
+          	}
+
+            // we now have 2 points to push, (car_x, car_y) and (prev_car_x,prev_car_y)
+            x_points.push_back(prev_car_x);
+            x_points.push_back(ref_x);
+            y_points.push_back(prev_car_y);
+            y_points.push_back(ref_y);
+
+
+            // Now I will add 4 points evenly spaced at 25m each in Frenet coordinates
+            int lane_number = (2 + 4*lane);
+            vector<double> waypoint1 = getXY(car_s + 25, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> waypoint2 = getXY(car_s + 50, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> waypoint3 = getXY(car_s + 75, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> waypoint4 = getXY(car_s + 100, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+            x_points.push_back(waypoint1[0]);
+            x_points.push_back(waypoint2[0]);
+            x_points.push_back(waypoint3[0]);
+            x_points.push_back(waypoint4[0]);
+
+            y_points.push_back(waypoint1[1]);
+            y_points.push_back(waypoint2[1]);
+            y_points.push_back(waypoint3[1]);
+            y_points.push_back(waypoint4[1]);
+
+
+            // shift car reference to make the car be at (0,0) and driving at 0 degrees reference plane
+            for (int i = 0; i < x_points.size(); i++)
+            {
+              double shift_x = x_points[i] - ref_x;
+              double shift_y = y_points[i] - ref_y;
+
+              x_points[i] = shift_x * cos(-ref_yaw) - shift_y * sin(-ref_yaw);
+              y_points[i] = shift_x * sin(-ref_yaw) + shift_y * cos(-ref_yaw);
+            }
+
+
+            // create spline
+            tk::spline s;
+
+            s.set_points(x_points, y_points);
 
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
+
+          	// Add the previous waypoint points that the car has yet to pass
+          	for (int i = 0; i < previous_path_x.size(); i++)
+          	{
+          	  next_x_vals.push_back(previous_path_x[i]);
+          	  next_y_vals.push_back(previous_path_y[i]);
+          	}
+
+          	// Calculate the points to be taken inside the spline while traveling at the desired
+          	// speed
+
+          	double target_x = 25.0;
+          	double target_y = s(target_x);
+          	double target_dist = sqrt(target_x*target_x + target_y*target_y);
+
+          	double x_add_on = 0;
+
+          	// the number of points in the waypoints is 50
+          	for (int i = 0; i <= (50 - previous_path_x.size()); i++)
+          	{
+          	  double N = target_dist/(0.02*ref_vel/2.24);
+          	  double x_point = x_add_on + target_x/N;
+          	  double y_point = s(x_point);
+
+          	  x_add_on = x_point;
+
+          	  double x_ref = x_point;
+          	  double y_ref = y_point;
+
+          	  // now I have to rotate back the coordinates
+          	  x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw);
+          	  y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw);
+
+          	  x_point += ref_x;
+          	  y_point += ref_y;
+
+          	  next_x_vals.push_back(x_point);
+          	  next_y_vals.push_back(y_point);
+
+          	}
+
+            json msgJson;
+/*
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
@@ -252,6 +366,8 @@ int main() {
               next_y_vals.push_back(xy[1]);
             }
           	// END
+          	 * *
+          	 */
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
