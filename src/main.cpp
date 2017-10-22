@@ -175,6 +175,12 @@ int main() {
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
 
+  // save some previous and reference values
+  // Start in lane 1;
+  static int lane = 1;
+  // Reference velocity
+  static double ref_vel = 0; // mph
+
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
   string line;
@@ -234,18 +240,54 @@ int main() {
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	// save some previous and reference values
-            // Start in lane 1;
-            int lane = 1;
-            // Reference velocity
-            double ref_vel = 49.5; // mph
-
           	int prev_path_size = previous_path_x.size();
           	double ref_x = car_x;
           	double ref_y = car_y;
           	double ref_yaw = deg2rad(car_yaw);
           	double prev_car_x = 0;
           	double prev_car_y = 0;
+
+          	if (prev_path_size > 0)
+          	{
+          	  car_s = end_path_s;
+          	}
+
+          	bool too_close = false;
+
+          	// try to find the relavitve velocity between cars ahead of us
+          	for (int i = 0; i < sensor_fusion.size(); i++)
+          	{
+          	  float d = sensor_fusion[i][6];
+
+          	  // car in our lane
+          	  if ((d < (2 + 4*lane + 2)) && (d > (2 + 4*lane - 2)))
+          	  {
+          	    double vx = sensor_fusion[i][3];
+          	    double vy = sensor_fusion[i][4];
+          	    double check_speed = sqrt(vx*vx + vy*vy);
+          	    double check_car_s = sensor_fusion[i][5];
+
+          	    check_car_s += ((double)prev_path_size*0.02*check_speed);
+
+          	    if ((check_car_s > car_s) && (check_car_s-car_s < 20))
+          	    {
+          	      too_close = true;
+          	    }
+          	  }
+          	}
+
+          	if (too_close)
+          	{
+          	  ref_vel -= 0.224; // 5mps
+          	}
+          	else if ((ref_vel < 49.5) && (ref_vel > 15))
+          	{
+          	  ref_vel += 0.336; // 7.5mps
+          	}
+          	else if (ref_vel < 15)
+          	{
+          	  ref_vel += 0.448; // just under 10mps
+          	}
 
           	// Creates a list of evenly spaced (x,y) waypoints to be later filled in with the spline
           	vector<double> x_points;
