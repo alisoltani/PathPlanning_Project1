@@ -272,6 +272,10 @@ int main() {
           	    if ((check_car_s > car_s) && (check_car_s-car_s < 20))
           	    {
           	      too_close = true;
+          	      if (lane > 0)
+          	      {
+          	        lane = 0;
+          	      }
           	    }
           	  }
           	}
