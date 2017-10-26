@@ -9,6 +9,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
+#include <list>
 
 using namespace std;
 
@@ -160,6 +161,15 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
+class car {
+
+public:
+   unsigned int id;
+   double speed;
+   double s;
+   double d;
+};
+
 int main() {
   uWS::Hub h;
 
@@ -180,6 +190,8 @@ int main() {
   static int lane = 1;
   // Reference velocity
   static double ref_vel = 0; // mph
+  // Change lane
+  static bool change_lane = false;
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
@@ -253,11 +265,22 @@ int main() {
           	}
 
           	bool too_close = false;
+          	bool change_lane_left = false;
+          	bool change_lane_right = false;
+          	double target_speed = 0.0;
+
+            std::list<car> cars_left_lane;
+            std::list<car> cars_right_lane;
+
+            cars_left_lane.clear();
+            cars_right_lane.clear();
+
 
           	// try to find the relavitve velocity between cars ahead of us
           	for (int i = 0; i < sensor_fusion.size(); i++)
           	{
           	  float d = sensor_fusion[i][6];
+          	  //printf("found a car! and it has %f \n", d);
 
           	  // car in our lane
           	  if ((d < (2 + 4*lane + 2)) && (d > (2 + 4*lane - 2)))
@@ -269,29 +292,115 @@ int main() {
 
           	    check_car_s += ((double)prev_path_size*0.02*check_speed);
 
-          	    if ((check_car_s > car_s) && (check_car_s-car_s < 20))
+          	    if ((check_car_s > car_s) && (check_car_s-car_s < 25))
           	    {
           	      too_close = true;
-          	      if (lane > 0)
-          	      {
-          	        lane = 0;
-          	      }
+          	      target_speed = check_speed;
           	    }
           	  }
+          	  // find cars in the left lane to the left
+              if ((d < (2 + 4*(lane-1) + 2)) && (d > (2 + 4*(lane-1) - 2)) && ((2 + 4*(lane-1) - 2) >= 0))
+              {
+                double vx = sensor_fusion[i][3];
+                double vy = sensor_fusion[i][4];
+                double check_speed = sqrt(vx*vx + vy*vy);
+                double check_car_s = sensor_fusion[i][5];
+
+                check_car_s += ((double)prev_path_size*0.02*check_speed);
+
+                if ((check_car_s-car_s < 30) && (check_car_s - car_s > -5 ))
+                {
+                  car left_car;
+                  left_car.id = i;
+                  left_car.d = d;
+                  left_car.s = check_car_s;
+                  left_car.speed = check_speed;
+                  cars_left_lane.push_back(left_car);
+                }
+
+              }
+
+              // find cars in lane to the right
+              if ((d < (2 + 4*(lane+1) + 2)) && (d > (2 + 4*(lane+1) - 2)) && ((2 + 4*(lane+1) - 2) < 12))
+              {
+                double vx = sensor_fusion[i][3];
+                double vy = sensor_fusion[i][4];
+                double check_speed = sqrt(vx*vx + vy*vy);
+                double check_car_s = sensor_fusion[i][5];
+
+                check_car_s += ((double)prev_path_size*0.02*check_speed);
+
+                if ((check_car_s-car_s < 30) && (check_car_s - car_s > -5 ))
+                {
+                  car right_car;
+                  right_car.id = i;
+                  right_car.d = d;
+                  right_car.s = check_car_s;
+                  right_car.speed = check_speed;
+                  cars_right_lane.push_back(right_car);
+                }
+
+              }
           	}
+          	if (too_close)
+          	{
+          	  //printf("Too close? %d \n", too_close);
+              //printf("Go left? %d \n", change_lane_left);
+              //printf("Go right? %d \n", change_lane_right);
+
+              // can I go into the left lane?
+              if (cars_left_lane.empty())
+              {
+                change_lane_left = true;
+              }
+              if (cars_right_lane.empty())
+              {
+                change_lane_right = true;
+              }
+          	}
+
 
           	if (too_close)
           	{
-          	  ref_vel -= 0.224; // 5mps
+              if (ref_vel - target_speed < 0.224)
+              {
+                ref_vel = target_speed;
+              }
+              else
+              {
+                ref_vel -= 0.112;
+              }
+
+
+          	  if ((change_lane_left) && lane > 0)
+          	  {
+          	    lane = lane - 1;
+          	  }
+          	  else if ((change_lane_right) && lane < 2)
+          	  {
+          	    lane = lane + 1;
+          	  }
           	}
           	else if ((ref_vel < 49.5) && (ref_vel > 15))
           	{
-          	  ref_vel += 0.336; // 7.5mps
+          	  ref_vel += 0.224; // 5mps
           	}
           	else if (ref_vel < 15)
           	{
           	  ref_vel += 0.448; // just under 10mps
           	}
+
+            /*if (!too_close)
+            {
+              if ((lane = 0) && (change_lane_right))
+              {
+                lane = 1;
+              }
+              if ((lane = 2) && (change_lane_left))
+              {
+                lane = 1;
+              }
+            }*/
 
           	// Creates a list of evenly spaced (x,y) waypoints to be later filled in with the spline
           	vector<double> x_points;
@@ -323,17 +432,17 @@ int main() {
             vector<double> waypoint1 = getXY(car_s + 25, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
             vector<double> waypoint2 = getXY(car_s + 50, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
             vector<double> waypoint3 = getXY(car_s + 75, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> waypoint4 = getXY(car_s + 100, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            //vector<double> waypoint4 = getXY(car_s + 100, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
             x_points.push_back(waypoint1[0]);
             x_points.push_back(waypoint2[0]);
             x_points.push_back(waypoint3[0]);
-            x_points.push_back(waypoint4[0]);
+            //x_points.push_back(waypoint4[0]);
 
             y_points.push_back(waypoint1[1]);
             y_points.push_back(waypoint2[1]);
             y_points.push_back(waypoint3[1]);
-            y_points.push_back(waypoint4[1]);
+            //y_points.push_back(waypoint4[1]);
 
 
             // shift car reference to make the car be at (0,0) and driving at 0 degrees reference plane
@@ -396,24 +505,7 @@ int main() {
           	}
 
             json msgJson;
-/*
 
-
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
-            double dist_inc = 0.5;
-            for(int i = 0; i < 50; i++)
-            {
-              double next_s = car_s + (dist_inc*i);
-              double next_d = 6;
-
-              vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-
-              next_x_vals.push_back(xy[0]);
-              next_y_vals.push_back(xy[1]);
-            }
-          	// END
-          	 * *
-          	 */
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
