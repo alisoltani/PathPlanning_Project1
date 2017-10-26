@@ -265,6 +265,7 @@ int main() {
           	}
 
           	bool too_close = false;
+          	bool way_too_close = false;
           	bool change_lane_left = false;
           	bool change_lane_right = false;
           	double target_speed = 0.0;
@@ -296,6 +297,11 @@ int main() {
           	    {
           	      too_close = true;
           	      target_speed = check_speed;
+
+          	      if (check_car_s - car_s < 10)
+          	      {
+          	        way_too_close = true;
+          	      }
           	    }
           	  }
           	  // find cars in the left lane to the left
@@ -362,15 +368,21 @@ int main() {
 
           	if (too_close)
           	{
-              if (ref_vel - target_speed < 0.224)
-              {
-                ref_vel = target_speed;
-              }
-              else
-              {
-                ref_vel -= 0.112;
-              }
-
+          	  if (way_too_close)
+          	  {
+          	    ref_vel -= 0.448;
+          	  }
+          	  else
+          	  {
+                //if (ref_vel - target_speed < 0.224)
+                //{
+                //  ref_vel = target_speed;
+                //}
+                //else
+                //{
+                  ref_vel -= 0.224; // 5mps
+                //}
+          	  }
 
           	  if ((change_lane_left) && lane > 0)
           	  {
@@ -429,9 +441,9 @@ int main() {
 
             // Now I will add 4 points evenly spaced at 25m each in Frenet coordinates
             int lane_number = (2 + 4*lane);
-            vector<double> waypoint1 = getXY(car_s + 25, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> waypoint2 = getXY(car_s + 50, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> waypoint3 = getXY(car_s + 75, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> waypoint1 = getXY(car_s + 30, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> waypoint2 = getXY(car_s + 60, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> waypoint3 = getXY(car_s + 90, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
             //vector<double> waypoint4 = getXY(car_s + 100, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
             x_points.push_back(waypoint1[0]);
