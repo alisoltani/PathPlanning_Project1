@@ -439,7 +439,7 @@ int main() {
             y_points.push_back(ref_y);
 
 
-            // Now I will add 4 points evenly spaced at 25m each in Frenet coordinates
+            // Now I will add 3 points evenly spaced at 30m each in Frenet coordinates
             int lane_number = (2 + 4*lane);
             vector<double> waypoint1 = getXY(car_s + 30, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
             vector<double> waypoint2 = getXY(car_s + 60, lane_number, map_waypoints_s, map_waypoints_x, map_waypoints_y);
