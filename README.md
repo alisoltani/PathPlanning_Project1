@@ -54,7 +54,7 @@ Finally sometimes the car crashes, though I am not convinced it is our fault....
 ![Alt text](results/Collision1.gif)
 ![Alt text](results/Collision2.gif)
 
-In the tests I did with those scenarios, it was not possible to avoid cars suddenly swerving with the current algorithm and logic, without violating the jerk/acceleration rules. It would require further programing and including the heading/speed of the adjacent vehicles to remove (some of) the collisions.
+In the tests I did with those scenarios, it was not possible to avoid cars suddenly swerving with the current algorithm and logic, without violating the jerk/acceleration rules. It would require further programing and including the heading/speed of the adjacent vehicles to remove (some of) the collisions, but the current submission fulfills the project rubrik (except for some unlucky scenarios like this).
 
 
 ---
