@@ -486,7 +486,10 @@ int main() {
           	// Calculate the points to be taken inside the spline while traveling at the desired
           	// speed
 
-          	double target_x = 25.0;
+          	// In this section, I try to generate the waypoints assuming that we are moving linearly
+          	// which in some maneuvers was not really the case and can cause issues.
+
+          	double target_x = 25.0; // Chose a random point
           	double target_y = s(target_x);
           	double target_dist = sqrt(target_x*target_x + target_y*target_y);
 
@@ -495,7 +498,7 @@ int main() {
           	// the number of points in the waypoints is 50
           	for (int i = 0; i <= (50 - previous_path_x.size()); i++)
           	{
-          	  double N = target_dist/(0.02*ref_vel/2.24);
+          	  double N = target_dist/(0.02*ref_vel/2.24); // This will give as the step for each point assuming the target velocity
           	  double x_point = x_add_on + target_x/N;
           	  double y_point = s(x_point);
 
